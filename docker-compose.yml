@@ -1,0 +1,11 @@
+services:
+  signaling-server:
+    build: .
+    container_name: p2p-signaling
+    ports:
+      - "127.0.0.1:3030:3030"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 50M
