@@ -48,25 +48,40 @@ async fn handle_socket(socket: WebSocket, room: String, state: AppState) {
     };
 
     let mut rx = tx.subscribe();
+    let tx_clone = tx.clone();
+
+    let room_for_send = room.clone();
+    let room_for_recv = room.clone();
 
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
+            println!("[{}] Отправляю клиенту: {}", room_for_send, msg);
             if sender.send(Message::Text(msg)).await.is_err() {
+                println!("❌ [{}] Ошибка отправки клиенту", room_for_send);
                 break;
             }
         }
     });
 
-    let tx_clone = tx.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            let _ = tx_clone.send(text);
+            println!("[{}] Получено от клиента: {}", room_for_recv, text);
+            match tx_clone.send(text.clone()) {
+                Ok(count) => println!("[{}] Транслирую {} подписчикам", room_for_recv, count),
+                Err(e) => println!("❌ [{}] Ошибка трансляции: {}", room_for_recv, e),
+            }
         }
     });
 
     tokio::select! {
-        _ = (&mut send_task) => recv_task.abort(),
-        _ = (&mut recv_task) => send_task.abort(),
+        _ = (&mut send_task) => {
+            println!("[{}] send_task завершился", room);
+            recv_task.abort();
+        },
+        _ = (&mut recv_task) => {
+            println!("[{}] recv_task завершился", room);
+            send_task.abort();
+        },
     }
 
     println!("Отключение от комнаты: {}", room);
