@@ -11,14 +11,7 @@ use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, broadcast};
 
-#[derive(Clone)]
-struct ClientInfo {
-    session_id: u64,
-    sender: broadcast::Sender<String>,
-}
-
-type RoomClients = HashMap<String, ClientInfo>;
-type AppState = Arc<Mutex<HashMap<String, RoomClients>>>;
+type AppState = Arc<Mutex<HashMap<String, broadcast::Sender<String>>>>;
 
 #[tokio::main]
 async fn main() {
@@ -46,15 +39,17 @@ async fn ws_handler(
 async fn handle_socket(socket: WebSocket, room: String, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
 
-    let (tx, _) = broadcast::channel::<String>(100);
+    let tx = {
+        let mut rooms = state.lock().await;
+        rooms
+            .entry(room.clone())
+            .or_insert_with(|| broadcast::channel(100).0)
+            .clone()
+    };
 
-    let tx_for_recv = tx.clone();
-
-    let client_name: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-    let client_name_clone = client_name.clone();
+    let mut rx = tx.subscribe();
 
     let mut send_task = tokio::spawn(async move {
-        let mut rx = tx.subscribe();
         while let Ok(msg) = rx.recv().await {
             if sender.send(Message::Text(msg)).await.is_err() {
                 break;
@@ -62,71 +57,16 @@ async fn handle_socket(socket: WebSocket, room: String, state: AppState) {
         }
     });
 
-    let state_clone = state.clone();
-    let room_clone = room.clone();
-
+    let tx_clone = tx.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            println!("Получено сообщение: {}", text);
-
-            let parsed = text.split_once('|').and_then(|(ip_str, rest)| {
-                rest.split_once('|').and_then(|(name, session_str)| {
-                    session_str
-                        .parse::<u64>()
-                        .ok()
-                        .map(|sid| (ip_str.to_string(), name.to_string(), sid))
-                })
-            });
-
-            let Some((ip_str, name, session_id)) = parsed else {
-                println!("Не удалось распарсить: {}", text);
-                continue;
-            };
-
-            let mut rooms = state_clone.lock().await;
-            let room_clients = rooms.entry(room_clone.clone()).or_insert_with(HashMap::new);
-
-            if let Some(existing) = room_clients.get(&name) {
-                if existing.session_id > session_id {
-                    println!(
-                        "Игнорируем старую сессию {} ({} < {})",
-                        name, session_id, existing.session_id
-                    );
-                    continue;
-                }
-            }
-
-            println!("Обновляем клиента {} session={}", name, session_id);
-            room_clients.insert(
-                name.clone(),
-                ClientInfo {
-                    session_id,
-                    sender: tx_for_recv.clone(),
-                },
-            );
-
-            *client_name_clone.lock().await = Some(name.clone());
-
-            for (other_name, client) in room_clients.iter() {
-                if *other_name != name {
-                    let _ = client.sender.send(text.clone());
-                    println!("Переслано {} -> {}", name, other_name);
-                }
-            }
+            let _ = tx_clone.send(text);
         }
     });
 
     tokio::select! {
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
-    }
-
-    if let Some(name) = client_name.lock().await.clone() {
-        let mut rooms = state.lock().await;
-        if let Some(room_clients) = rooms.get_mut(&room) {
-            room_clients.remove(&name);
-            println!("Удален клиент {} из комнаты {}", name, room);
-        }
     }
 
     println!("Отключение от комнаты: {}", room);
