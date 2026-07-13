@@ -67,58 +67,58 @@ async fn handle_socket(socket: WebSocket, room: String, state: AppState) {
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            if let Some((ip_str, rest)) = text.split_once('|') {
-                if let Some((name, session_id_str)) = rest.split_once('|') {
-                    if let Ok(session_id) = session_id_str.parse::<u64>() {
-                        let mut rooms = state_clone.lock().await;
-                        let room_clients =
-                            rooms.entry(room_clone.clone()).or_insert_with(HashMap::new);
+            println!("Получено сообщение: {}", text);
 
-                        if let Some(existing) = room_clients.get(name) {
-                            if existing.session_id < session_id {
-                                println!(
-                                    "Удаляем старую сессию {} (session {})",
-                                    name, existing.session_id
-                                );
-                                room_clients.remove(name);
-                            } else {
-                                println!(
-                                    "Игнорируем старую сессию {} (session {})",
-                                    name, session_id
-                                );
-                                continue;
-                            }
-                        }
+            let parsed = text.split_once('|').and_then(|(ip_str, rest)| {
+                rest.split_once('|').and_then(|(name, session_str)| {
+                    session_str
+                        .parse::<u64>()
+                        .ok()
+                        .map(|sid| (ip_str.to_string(), name.to_string(), sid))
+                })
+            });
 
-                        println!("Добавляем клиента {} с session {}", name, session_id);
-                        room_clients.insert(
-                            name.to_string(),
-                            ClientInfo {
-                                session_id,
-                                sender: tx_for_recv.clone(),
-                            },
-                        );
+            let Some((ip_str, name, session_id)) = parsed else {
+                println!("Не удалось распарсить: {}", text);
+                continue;
+            };
 
-                        *client_name_clone.lock().await = Some(name.to_string());
+            let mut rooms = state_clone.lock().await;
+            let room_clients = rooms.entry(room_clone.clone()).or_insert_with(HashMap::new);
 
-                        for (other_name, client) in room_clients.iter() {
-                            if other_name != name {
-                                let _ = client.sender.send(text.clone());
-                            }
-                        }
-                    }
+            if let Some(existing) = room_clients.get(&name) {
+                if existing.session_id > session_id {
+                    println!(
+                        "Игнорируем старую сессию {} ({} < {})",
+                        name, session_id, existing.session_id
+                    );
+                    continue;
+                }
+            }
+
+            println!("Обновляем клиента {} session={}", name, session_id);
+            room_clients.insert(
+                name.clone(),
+                ClientInfo {
+                    session_id,
+                    sender: tx_for_recv.clone(),
+                },
+            );
+
+            *client_name_clone.lock().await = Some(name.clone());
+
+            for (other_name, client) in room_clients.iter() {
+                if *other_name != name {
+                    let _ = client.sender.send(text.clone());
+                    println!("Переслано {} -> {}", name, other_name);
                 }
             }
         }
     });
 
     tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        },
-        _ = (&mut recv_task) => {
-            send_task.abort();
-        },
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
     }
 
     if let Some(name) = client_name.lock().await.clone() {
