@@ -4,6 +4,10 @@ services:
     container_name: p2p-signaling
     ports:
       - "127.0.0.1:3030:3030"
+    volumes:
+          - ./data:/app/data
+    environment:
+      - DATABASE_URL=/app/data/p2p_voice.db
     restart: unless-stopped
     deploy:
       resources:

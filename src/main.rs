@@ -42,7 +42,8 @@ type AppState = Arc<ServerState>;
 
 #[tokio::main]
 async fn main() {
-    let db_conn = Connection::open("p2p_voice.db").expect("Не удалось открыть базу данных");
+    let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| "p2p_voice.db".to_string());
+    let db_conn = Connection::open(db_path).expect("Не удалось открыть базу данных");
     db_conn
         .execute(
             "CREATE TABLE IF NOT EXISTS users (
