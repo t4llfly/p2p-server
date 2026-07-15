@@ -1,5 +1,1 @@
-```
-# Readme files are source documentation and should not be ignored
-# No build artifacts, dependencies, or temporary files detected in changes
-# Current .gitignore is empty and no new ignores needed
-```
+/target
