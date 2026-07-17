@@ -10,4 +10,4 @@ COPY --from=builder /app/target/release/vvcall-server /app/vvcall-server
 
 EXPOSE 3030
 
-CMD ["/app/server"]
+CMD ["/app/vvcall-server"]
