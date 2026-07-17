@@ -1,4 +1,4 @@
-# P2P Voice Server
+# VVcall Server
 
 **言語:** [English](README.md) | [Русский](README.ru.md) | [日本語](README.ja.md)
 
@@ -32,8 +32,8 @@ Rust で構築されたピアツーピア音声チャットサーバー。WebSoc
 
 ```bash
 # リポジトリをクローン
-git clone <リポジトリ URL>
-cd p2p-server
+git clone https://github.com/vvcall-dev/server.git
+cd server
 
 # プロジェクトをビルド
 cargo build --release
@@ -49,10 +49,10 @@ cargo run
 データベースパスを指定するには、`DATABASE_URL` 環境変数を設定します：
 
 ```bash
-export DATABASE_URL=/path/to/p2p_voice.db
+export DATABASE_URL=/path/to/vvcall.db
 ```
 
-設定しない場合、カレントディレクトリの `p2p_voice.db` がデフォルトで使用されます。
+設定しない場合、カレントディレクトリの `vvcall.db` がデフォルトで使用されます。
 
 ## API エンドポイント
 

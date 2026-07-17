@@ -1,13 +1,13 @@
 services:
   signaling-server:
     build: .
-    container_name: p2p-signaling
+    container_name: vvcall-server
     ports:
       - "127.0.0.1:3030:3030"
     volumes:
           - ./data:/app/data
     environment:
-      - DATABASE_URL=/app/data/p2p_voice.db
+      - DATABASE_URL=/app/data/vvcall.db
     restart: unless-stopped
     deploy:
       resources:

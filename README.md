@@ -1,4 +1,4 @@
-# P2P Voice Server
+# VVcall Server
 
 **Languages:** [English](README.md) | [Русский](README.ru.md) | [日本語](README.ja.md)
 
@@ -32,8 +32,8 @@ A peer-to-peer voice chat server built with Rust, featuring WebSocket communicat
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd p2p-server
+git clone https://github.com/vvcall-dev/server.git
+cd server
 
 # Build the project
 cargo build --release
@@ -49,10 +49,10 @@ The server will start on port `3030` by default.
 Set the `DATABASE_URL` environment variable to specify the database path:
 
 ```bash
-export DATABASE_URL=/path/to/p2p_voice.db
+export DATABASE_URL=/path/to/vvcall.db
 ```
 
-If not set, it defaults to `p2p_voice.db` in the current directory.
+If not set, it defaults to `vvcall.db` in the current directory.
 
 ## API Endpoints
 

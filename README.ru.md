@@ -1,4 +1,4 @@
-# P2P Voice Server
+# VVcall Server
 
 **Языки:** [English](README.md) | [Русский](README.ru.md) | [日本語](README.ja.md)
 
@@ -32,8 +32,8 @@
 
 ```bash
 # Клонировать репозиторий
-git clone <url-репозитория>
-cd p2p-server
+git clone https://github.com/vvcall-dev/server.git
+cd server
 
 # Собрать проект
 cargo build --release
@@ -49,10 +49,10 @@ cargo run
 Установите переменную окружения `DATABASE_URL` для указания пути к базе данных:
 
 ```bash
-export DATABASE_URL=/path/to/p2p_voice.db
+export DATABASE_URL=/path/to/vvcall.db
 ```
 
-Если не установлено, по умолчанию используется `p2p_voice.db` в текущей директории.
+Если не установлено, по умолчанию используется `vvcall.db` в текущей директории.
 
 ## API Endpoints
 

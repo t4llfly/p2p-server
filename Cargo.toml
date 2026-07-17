@@ -1,6 +1,6 @@
 [package]
-name = "p2p-server"
-version = "0.1.0"
+name = "vvcall-server"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]

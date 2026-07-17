@@ -42,7 +42,7 @@ type AppState = Arc<ServerState>;
 
 #[tokio::main]
 async fn main() {
-    let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| "p2p_voice.db".to_string());
+    let db_path = std::env::var("DATABASE_URL").unwrap_or_else(|_| "vvcall.db".to_string());
     let db_conn = Connection::open(db_path).expect("Не удалось открыть базу данных");
     db_conn
         .execute(
