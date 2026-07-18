@@ -10,7 +10,13 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+use tokio::net::UdpSocket;
 use tokio::sync::{Mutex, broadcast};
 
 #[derive(Deserialize)]
@@ -36,6 +42,7 @@ struct ConfigUpdateRequest {
 struct ServerState {
     rooms: Mutex<HashMap<String, broadcast::Sender<String>>>,
     db: Mutex<Connection>,
+    relay_rooms: Mutex<HashMap<String, HashMap<SocketAddr, Instant>>>,
 }
 
 type AppState = Arc<ServerState>;
@@ -60,7 +67,10 @@ async fn main() {
     let state = Arc::new(ServerState {
         rooms: Mutex::new(HashMap::new()),
         db: Mutex::new(db_conn),
+        relay_rooms: Mutex::new(HashMap::new()),
     });
+
+    start_udp_relay(state.clone());
 
     let app = Router::new()
         .route("/ws/:room", get(ws_handler))
@@ -73,6 +83,57 @@ async fn main() {
     println!("Сервер запущен на порту 3030");
 
     axum::serve(listener, app).await.unwrap();
+}
+
+fn start_udp_relay(state: AppState) {
+    let state_relay = state.clone();
+    tokio::spawn(async move {
+        let socket = UdpSocket::bind("0.0.0.0:3031")
+            .await
+            .expect("Не удалось занять порт 3031 для UDP");
+        println!("Ретранслятор запущен на UDP порту 3031");
+
+        let mut buf = [0u8; 2048];
+        loop {
+            if let Ok((len, addr)) = socket.recv_from(&mut buf).await {
+                if len <= 64 {
+                    continue;
+                }
+
+                let room_hash = String::from_utf8_lossy(&buf[..64]).to_string();
+
+                let mut relay_map = state_relay.relay_rooms.lock().await;
+                let room_peers = relay_map.entry(room_hash).or_insert_with(HashMap::new);
+
+                room_peers.insert(addr, Instant::now());
+
+                let peers_to_send: Vec<SocketAddr> = room_peers
+                    .keys()
+                    .filter(|&&peer_addr| peer_addr != addr)
+                    .copied()
+                    .collect();
+
+                drop(relay_map);
+
+                for peer in peers_to_send {
+                    let _ = socket.send_to(&buf[..len], peer).await;
+                }
+            }
+        }
+    });
+
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            let mut relay_map = state.relay_rooms.lock().await;
+            let now = Instant::now();
+
+            for peers in relay_map.values_mut() {
+                peers.retain(|_, last_seen| now.duration_since(*last_seen).as_secs() < 15);
+            }
+            relay_map.retain(|_, peers| !peers.is_empty());
+        }
+    });
 }
 
 async fn api_register(
